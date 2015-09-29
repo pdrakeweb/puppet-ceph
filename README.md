@@ -39,7 +39,6 @@ Use Cases
 
 * [I want to try this module, heard of ceph, want to see it in action](USECASES.md#i-want-to-try-this-module,-heard-of-ceph,-want-to-see-it-in-action)
 * [I want to operate a production cluster](USECASES.md#i-want-to-operate-a-production-cluster)
-* [I want to spawn a cluster configured with a puppetmaster as part of a continuous integration effort] (USECASES.md#i-want-to-spawn-a-cluster-configured-with-a-puppetmaster-as-part-of-a-continuous-integration-effort)
 * [I want to run benchmarks on three new machines](USECASES.md#i-want-to-run-benchmarks-on-three-new-machines)
 
 Development
@@ -66,8 +65,42 @@ IRC channels:
 * irc.freenode.net#puppet-openstack
 * irc.oftc.net#ceph-devel
 
-Integration Tests
------------------
+Beaker Integration Tests
+------------------------
+
+Relies on
+[rspec-beaker](https://github.com/puppetlabs/beaker-rspec)
+and tests are in spec/acceptance.
+It also requires [Vagrant and Virtualbox](http://docs-v1.vagrantup.com/v1/docs/getting-started/)
+.
+
+```
+bundle install
+bundle exec rspec spec/acceptance
+```
+
+The BEAKER_set environment variable contains the resource set of linux
+distribution configurations for which integration tests are going
+to be run. Available values are
+
+* two-centos-70-x64
+* centos-70-x64
+* two-ubuntu-server-1404-x64
+* ubuntu-server-1404-x64
+* two-centos-66-x64
+* centos-66-x64
+* two-ubuntu-server-1204-x64
+* ubuntu-server-1204-x64
+
+The default is
+
+```
+BEAKER_set=two-ubuntu-server-1404-x64 \
+bundle exec rspec spec/acceptance
+```
+
+Deprecated Integration Tests
+----------------------------
 
 Relies on
 [rspec-system-puppet](https://github.com/puppetlabs/rspec-system-puppet)
@@ -77,20 +110,19 @@ and tests are in spec/system. It runs virtual machines and requires
 * [Install Vagrant and Virtualbox](http://docs-v1.vagrantup.com/v1/docs/getting-started/)
 * sudo apt-get install ruby-dev libxml2-dev libxslt-dev # nokogiri dependencies
 * mv Gemfile-rspec-system Gemfile # because of https://bugs.launchpad.net/openstack-ci/+bug/1290710
-* BUNDLE_PATH=/tmp/vendor bundle install
-* BUNDLE_PATH=/tmp/vendor bundle exec rake lint
-* BUNDLE_PATH=/tmp/vendor bundle exec rake spec
+* bundle install
+* bundle exec rake lint
+* bundle exec rake spec
 * git clone https://github.com/bodepd/scenario_node_terminus.git ../scenario_node_terminus
-* BUNDLE_PATH=/tmp/vendor bundle exec rake spec:system
-* BUNDLE_PATH=/tmp/vendor RS_SET=two-ubuntu-server-12042-x64 bundle exec rake spec:system
-* BUNDLE_PATH=/tmp/vendor RS_SET=two-centos-64-x64 bundle exec rake spec:system
+* bundle exec rake spec:system
+* RS_SET=two-ubuntu-server-1204-x64 bundle exec rake spec:system
+* RS_SET=two-centos-66-x64 bundle exec rake spec:system
 
 The RELEASES environment variable contains the list of ceph releases
 for which integration tests are going to be run. The default is
 
 ```
-BUNDLE_PATH=/tmp/vendor \
-RELEASES='dumpling emperor firefly' \
+RELEASES='firefly hammer' \
 bundle exec rake spec:system
 ```
 
@@ -100,14 +132,15 @@ to be run. Available values are
 
 * two-ubuntu-server-12042-x64
 * one-ubuntu-server-12042-x64
-* two-centos-64-x64
-* one-centos-64-x64
+* two-centos-65-x64
+* one-centos-65-x64
+* two-centos-70-x64
+* one-centos-70-x64
 
 The default is
 
 ```
-BUNDLE_PATH=/tmp/vendor \
-RS_SET=two-ubuntu-server-12042-x64 \
+RS_SET=two-ubuntu-server-1204-x64 \
 bundle exec rake spec:system
 ```
 
@@ -133,19 +166,29 @@ Finished in 4 minutes 1.7 seconds
 Example invocation of gerritexec:
 
 ```
-script='bash -c "'
-script+='mv Gemfile-rspec-system Gemfile ; bundle install ;'
-script+='RS_SET=two-ubuntu-server-12042-x64 bundle exec rake spec:system'
-script+='RS_SET=two-centos-64-x64 bundle exec rake spec:system'
-script+='" > /tmp/out 2>&1 ; r=$? ; '
-script+='echo https://pypi.python.org/pypi/gerritexec output: ; '
-script+='pastebinit /tmp/out ; '
-script+='exit $r #'
-GEM_HOME=~/.gems gerritexec \
-   --hostname review.openstack.org \
-   --verbose --username puppetceph \
-   --script "$script" \
-   --project stackforge/puppet-ceph
+cat > ./ci.sh << EOF
+#!/bin/bash
+
+bundle install
+
+export BEAKER_debug=yes
+export BEAKER_destroy=yes
+
+echo ---------------- CENTOS 7 --------------
+BEAKER_set=two-centos-70-x64 bundle exec rspec spec/acceptance
+rc=$?
+
+echo ---------- UBUNTU 14.04 --------------
+BEAKER_set=two-ubuntu-server-1404-x64 bundle exec rspec spec/acceptance
+exit $(( $? | $rc))
+EOF
+
+chmod +x ./ci.sh
+
+GEM_HOME=~/.gems screen -dmS puppet-ceph gerritexec \
+  --timeout 14400 --hostname review.openstack.org \
+  --verbose --username puppetceph --script "../ci.sh > /tmp/out$$ 2>&1 ; r=$? ; pastebinit /tmp/out$$ ; exit $r #" \
+  --project stackforge/puppet-ceph
 ```
 
 Contributors

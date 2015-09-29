@@ -19,8 +19,12 @@
 # Author: David Moreau Simard <dmsimard@iweb.com>
 # Author: David Gurtner <aldavud@crimson.ch>
 #
+# == Define: ceph::mon
+#
 # Installs and configures MONs (ceph monitors)
-### == Parameters
+#
+# === Parameters:
+#
 # [*title*] The MON id.
 #   Mandatory. An alphanumeric string uniquely identifying the MON.
 #
@@ -105,8 +109,8 @@ define ceph::mon (
           $keyring_path = "/tmp/ceph-mon-keyring-${id}"
 
           file { $keyring_path:
-            mode        => '0444',
-            content     => "[mon.]\n\tkey = ${key}\n\tcaps mon = \"allow *\"\n",
+            mode    => '0444',
+            content => "[mon.]\n\tkey = ${key}\n\tcaps mon = \"allow *\"\n",
           }
 
           File[$keyring_path] -> Exec[$ceph_mkfs]
@@ -124,6 +128,13 @@ define ceph::mon (
       }
 
       Ceph_Config<||> ->
+      # prevent automatic creation of the client.admin key by ceph-create-keys
+      exec { "ceph-mon-${cluster_name}.client.admin.keyring-${id}":
+        command => "/bin/true # comment to satisfy puppet syntax requirements
+set -ex
+touch /etc/ceph/${cluster_name}.client.admin.keyring",
+      }
+      ->
       exec { $ceph_mkfs:
         command   => "/bin/true # comment to satisfy puppet syntax requirements
 set -ex
@@ -140,15 +151,8 @@ if [ ! -d \$mon_data ] ; then
     rm -fr \$mon_data
   fi
 fi
-        ",
+",
         logoutput => true,
-      }
-      ->
-      # prevent automatic creation of the client.admin key by ceph-create-keys
-      exec { "ceph-mon-${cluster_name}.client.admin.keyring-${id}":
-        command => "/bin/true # comment to satisfy puppet syntax requirements
-set -ex
-touch /etc/ceph/${cluster_name}.client.admin.keyring",
       }
       ->
       service { $mon_service:
@@ -172,10 +176,16 @@ touch /etc/ceph/${cluster_name}.client.admin.keyring",
       }
       ->
       exec { "remove-mon-${id}":
-        command   => "/bin/true  # comment to satisfy puppet syntax requirements
+        command   => "/bin/true # comment to satisfy puppet syntax requirements
 set -ex
-mon_data=\$(ceph-mon ${cluster_option} --id ${id} --show-config | sed -n -e 's/mon_data = //p')
+mon_data=\$(ceph-mon ${cluster_option} --id ${id} --show-config-value mon_data)
 rm -fr \$mon_data
+",
+        unless    => "/bin/true # comment to satisfy puppet syntax requirements
+set -ex
+which ceph-mon || exit 0 # if ceph-mon is not available we already uninstalled ceph and there is nothing to do
+mon_data=\$(ceph-mon ${cluster_option} --id ${id} --show-config-value mon_data)
+test ! -d \$mon_data
 ",
         logoutput => true,
       } -> Package<| tag == 'ceph' |>

@@ -17,7 +17,12 @@
 # Author: Loic Dachary <loic@dachary.org>
 # Author: David Gurtner <aldavud@crimson.ch>
 #
-### == Parameters
+# == Define: ceph::osd
+#
+# Install and configure a ceph OSD
+#
+# === Parameters:
+#
 # [*title*] The OSD data path.
 #   Mandatory. A path in which the OSD data is to be stored.
 #
@@ -50,28 +55,45 @@ define ceph::osd (
 
     if $ensure == present {
 
-      $ceph_mkfs = "ceph-osd-mkfs-${name}"
+      $ceph_prepare = "ceph-osd-prepare-${name}"
+      $ceph_activate = "ceph-osd-activate-${name}"
 
-      Ceph_Config<||> -> Exec[$ceph_mkfs]
-      Ceph::Mon<||> -> Exec[$ceph_mkfs]
-      Ceph::Key<||> -> Exec[$ceph_mkfs]
+      Ceph_Config<||> -> Exec[$ceph_prepare]
+      Ceph::Mon<||> -> Exec[$ceph_prepare]
+      Ceph::Key<||> -> Exec[$ceph_prepare]
       # ceph-disk: prepare should be idempotent http://tracker.ceph.com/issues/7475
-      exec { $ceph_mkfs:
-        command   => "/bin/true  # comment to satisfy puppet syntax requirements
+      exec { $ceph_prepare:
+        command   => "/bin/true # comment to satisfy puppet syntax requirements
 set -ex
 if ! test -b ${data} ; then
   mkdir -p ${data}
 fi
 ceph-disk prepare ${cluster_option} ${data} ${journal}
+",
+        unless    => "/bin/true # comment to satisfy puppet syntax requirements
+set -ex
+ceph-disk list | grep -E ' *${data}1? .*ceph data, (prepared|active)' ||
+ls -l /var/lib/ceph/osd/${cluster_name}-* | grep ' ${data}\$'
+",
+        logoutput => true,
+      }
+
+      Exec[$ceph_prepare] -> Exec[$ceph_activate]
+      exec { $ceph_activate:
+        command   => "/bin/true # comment to satisfy puppet syntax requirements
+set -ex
+if ! test -b ${data} ; then
+  mkdir -p ${data}
+fi
 # activate happens via udev when using the entire device
 if ! test -b ${data} || ! test -b ${data}1 ; then
   ceph-disk activate ${data} || true
 fi
 ",
-        unless    => "/bin/true  # comment to satisfy puppet syntax requirements
+        unless    => "/bin/true # comment to satisfy puppet syntax requirements
 set -ex
-ceph-disk list | grep ' *${data}.*ceph data, active' ||
-ls -l /var/lib/ceph/osd/${cluster_name}-* | grep ' ${data}'
+ceph-disk list | grep -E ' *${data}1? .*ceph data, active' ||
+ls -ld /var/lib/ceph/osd/${cluster_name}-* | grep ' ${data}\$'
 ",
         logoutput => true,
       }
@@ -80,16 +102,13 @@ ls -l /var/lib/ceph/osd/${cluster_name}-* | grep ' ${data}'
 
       # ceph-disk: support osd removal http://tracker.ceph.com/issues/7454
       exec { "remove-osd-${name}":
-        command   => "/bin/true  # comment to satisfy puppet syntax requirements
+        command   => "/bin/true # comment to satisfy puppet syntax requirements
 set -ex
 if [ -z \"\$id\" ] ; then
-  id=\$(ceph-disk list | grep ' *${data}.*ceph data' | sed -ne 's/.*osd.\\([0-9][0-9]*\\).*/\\1/p')
+  id=\$(ceph-disk list | sed -nEe 's:^ *${data}1? .*(ceph data|mounted on).*osd\\.([0-9]+).*:\\2:p')
 fi
 if [ -z \"\$id\" ] ; then
-  id=\$(ceph-disk list | grep ' *${data}.*mounted on' | sed -ne 's/.*osd.\\([0-9][0-9]*\\)\$/\\1/p')
-fi
-if [ -z \"\$id\" ] ; then
-  id=\$(ls -l /var/lib/ceph/osd/${cluster_name}-* | grep ' ${data}' | sed -ne 's:.*/${cluster_name}-\\([0-9][0-9]*\\) -> .*:\\1:p' || true)
+  id=\$(ls -ld /var/lib/ceph/osd/${cluster_name}-* | sed -nEe 's:.*/${cluster_name}-([0-9]+) *-> *${data}\$:\\1:p' || true)
 fi
 if [ \"\$id\" ] ; then
   stop ceph-osd cluster=${cluster_name} id=\$id || true
@@ -99,6 +118,20 @@ if [ \"\$id\" ] ; then
   rm -fr /var/lib/ceph/osd/${cluster_name}-\$id/*
   umount /var/lib/ceph/osd/${cluster_name}-\$id || true
   rm -fr /var/lib/ceph/osd/${cluster_name}-\$id
+fi
+",
+        unless    => "/bin/true # comment to satisfy puppet syntax requirements
+set -ex
+if [ -z \"\$id\" ] ; then
+  id=\$(ceph-disk list | sed -nEe 's:^ *${data}1? .*(ceph data|mounted on).*osd\\.([0-9]+).*:\\2:p')
+fi
+if [ -z \"\$id\" ] ; then
+  id=\$(ls -ld /var/lib/ceph/osd/${cluster_name}-* | sed -nEe 's:.*/${cluster_name}-([0-9]+) *-> *${data}\$:\\1:p' || true)
+fi
+if [ \"\$id\" ] ; then
+  test ! -d /var/lib/ceph/osd/${cluster_name}-\$id
+else
+  true # if there is no id  we do nothing
 fi
 ",
         logoutput => true,

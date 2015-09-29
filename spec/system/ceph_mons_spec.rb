@@ -19,7 +19,7 @@ require 'spec_helper_system'
 
 describe 'ceph::mons' do
 
-  releases = ENV['RELEASES'] ? ENV['RELEASES'].split : [ 'dumpling', 'emperor', 'firefly' ]
+  releases = ENV['RELEASES'] ? ENV['RELEASES'].split : [ 'firefly', 'hammer' ]
   machines = ENV['MACHINES'] ? ENV['MACHINES'].split : [ 'first', 'second' ]
   # passing it directly as unqoted array is not supported everywhere
   fsid = 'a4807c9a-e76f-4666-a297-6d6cbc922e3a'
@@ -117,15 +117,15 @@ scenario: 2_role
             end
 
             puppet_apply(data_site_pp) do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
               r.refresh
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             shell 'ceph -s' do |r|
-              r.stdout.should =~ /1 mons at/
-              r.stderr.should be_empty
-              r.exit_code.should be_zero
+              expect(r.stdout).to match(/1 mons at/)
+              expect(r.stderr).to be_empty
+              expect(r.exit_code).to be_zero
             end
           end
 
@@ -146,7 +146,7 @@ scenario: 2_role
             end
 
             puppet_apply(data_site_pp) do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             osfamily = facter.facts['osfamily']
@@ -154,16 +154,16 @@ scenario: 2_role
 
             if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
               shell 'status ceph-mon id=first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /status: Unknown job: ceph-mon/
-                r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/status: Unknown job: ceph-mon/)
+                expect(r.exit_code).not_to be_zero
               end
             end
             if osfamily == 'RedHat'
               shell 'service ceph status mon.first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /ceph: unrecognized service/
-                r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/ceph: unrecognized service/)
+                expect(r.exit_code).not_to be_zero
               end
             end
           end
@@ -201,26 +201,26 @@ ceph::keys::args:
             end
 
             puppet_apply(data_site_pp) do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
               r.refresh
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             shell 'cat /etc/ceph/ceph.client.admin.keyring' do |r|
-              r.stdout.should =~ /#{admin_key}/
-              r.stderr.should be_empty
-              r.exit_code.should be_zero
+              expect(r.stdout).to match(/#{admin_key}/)
+              expect(r.stderr).to be_empty
+              expect(r.exit_code).to be_zero
             end
 
             shell 'ceph -s' do |r|
-              r.stdout.should =~ /1 mons at/
-              r.stderr.should be_empty
-              r.exit_code.should be_zero
+              expect(r.stdout).to match(/1 mons at/)
+              expect(r.stderr).to be_empty
+              expect(r.exit_code).to be_zero
             end
 
             shell 'ceph auth list' do |r|
-              r.stdout.should =~ /#{admin_key}/
-              r.exit_code.should be_zero
+              expect(r.stdout).to match(/#{admin_key}/)
+              expect(r.exit_code).to be_zero
             end
           end
 
@@ -242,7 +242,7 @@ scenario: 2_role
             end
 
             puppet_apply(data_site_pp) do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             osfamily = facter.facts['osfamily']
@@ -250,16 +250,16 @@ scenario: 2_role
 
             if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
               shell 'status ceph-mon id=first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /status: Unknown job: ceph-mon/
-                r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/status: Unknown job: ceph-mon/)
+                expect(r.exit_code).not_to be_zero
               end
             end
             if osfamily == 'RedHat'
               shell 'service ceph status mon.first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /ceph: unrecognized service/
-                r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/ceph: unrecognized service/)
+                expect(r.exit_code).not_to be_zero
               end
             end
           end
@@ -281,8 +281,8 @@ scenario: 2_role
       EOS
 
       machines.each do |vm|
-        puppet_apply(pp) do |r|
-          r.exit_code.should_not == 1
+        puppet_apply(:node => vm, :code => pp) do |r|
+          expect(r.exit_code).not_to eq(1)
         end
 
         rcp(:sp => snt_data, :dp => data_path, :d => node(:name => vm))
@@ -291,21 +291,7 @@ scenario: 2_role
     end
 
     after(:all) do
-      pp = <<-EOS
-      ini_setting { 'puppetmastermodulepath':
-        ensure  => absent,
-        path    => '/etc/puppet/puppet.conf',
-        section => 'main',
-        setting => 'node_terminus',
-        value   => 'scenario',
-      }
-      EOS
-
       machines.each do |vm|
-        puppet_apply(pp) do |r|
-          r.exit_code.should_not == 1
-        end
-
         file = Tempfile.new('hieraconfig')
         begin
           file.write(minimal_hiera_config)
@@ -315,6 +301,7 @@ scenario: 2_role
           file.unlink
         end
 
+        shell(:node => vm, :command => "sed -i '/^\\s*node_terminus\\s*=\\s*scenario\\s*$/d' /etc/puppet/puppet.conf")
         shell(:node => vm, :command => 'rm -rf /etc/puppet/data')
       end
     end
@@ -347,15 +334,15 @@ ensure: present
             end
 
             puppet_apply('') do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
               r.refresh
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             shell 'ceph -s' do |r|
-              r.stdout.should =~ /1 mons at/
-                r.stderr.should be_empty
-              r.exit_code.should be_zero
+              expect(r.stdout).to match(/1 mons at/)
+                expect(r.stderr).to be_empty
+              expect(r.exit_code).to be_zero
             end
           end
 
@@ -372,7 +359,7 @@ ensure: purged
             end
 
             puppet_apply('') do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             osfamily = facter.facts['osfamily']
@@ -380,16 +367,16 @@ ensure: purged
 
             if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
               shell 'status ceph-mon id=first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /status: Unknown job: ceph-mon/
-                  r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/status: Unknown job: ceph-mon/)
+                  expect(r.exit_code).not_to be_zero
               end
             end
             if osfamily == 'RedHat'
               shell 'service ceph status mon.first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /ceph: unrecognized service/
-                  r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/ceph: unrecognized service/)
+                  expect(r.exit_code).not_to be_zero
               end
             end
           end
@@ -429,26 +416,26 @@ ensure: present
             end
 
             puppet_apply('') do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
               r.refresh
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             shell 'cat /etc/ceph/ceph.client.admin.keyring' do |r|
-              r.stdout.should =~ /#{admin_key}/
-                r.stderr.should be_empty
-              r.exit_code.should be_zero
+              expect(r.stdout).to match(/#{admin_key}/)
+                expect(r.stderr).to be_empty
+              expect(r.exit_code).to be_zero
             end
 
             shell 'ceph -s' do |r|
-              r.stdout.should =~ /1 mons at/
-                r.stderr.should be_empty
-              r.exit_code.should be_zero
+              expect(r.stdout).to match(/1 mons at/)
+                expect(r.stderr).to be_empty
+              expect(r.exit_code).to be_zero
             end
 
             shell 'ceph auth list' do |r|
-              r.stdout.should =~ /#{admin_key}/
-                r.exit_code.should be_zero
+              expect(r.stdout).to match(/#{admin_key}/)
+                expect(r.exit_code).to be_zero
             end
           end
 
@@ -465,7 +452,7 @@ ensure: purged
             end
 
             puppet_apply('') do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             osfamily = facter.facts['osfamily']
@@ -473,16 +460,16 @@ ensure: purged
 
             if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
               shell 'status ceph-mon id=first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /status: Unknown job: ceph-mon/
-                  r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/status: Unknown job: ceph-mon/)
+                  expect(r.exit_code).not_to be_zero
               end
             end
             if osfamily == 'RedHat'
               shell 'service ceph status mon.first' do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /ceph: unrecognized service/
-                  r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/ceph: unrecognized service/)
+                  expect(r.exit_code).not_to be_zero
               end
             end
           end
@@ -494,15 +481,15 @@ end
 # Local Variables:
 # compile-command: "cd ../..
 #   (
-#     cd .rspec_system/vagrant_projects/one-ubuntu-server-12042-x64
+#     cd .rspec_system/vagrant_projects/ubuntu-server-1204-x64
 #     vagrant destroy --force
 #   )
 #   cp -a Gemfile-rspec-system Gemfile
 #   BUNDLE_PATH=/tmp/vendor bundle install --no-deployment
-#   RELEASES=dumpling \
+#   RELEASES=hammer \
 #   MACHINES=first \
 #   RS_DESTROY=no \
-#   RS_SET=one-ubuntu-server-12042-x64 \
+#   RS_SET=ubuntu-server-1204-x64 \
 #   BUNDLE_PATH=/tmp/vendor \
 #   bundle exec rake spec:system \
 #         SPEC=spec/system/ceph_mons_spec.rb \

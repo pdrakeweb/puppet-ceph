@@ -15,10 +15,14 @@
 #
 # Author: David Moreau Simard <dmsimard@iweb.com>
 # Author: David Gurtner <aldavud@crimson.ch>
-
+#
+# == Class: ceph
+#
 # init takes care of installing/configuring the common dependencies across classes
 # it also takes care of the global configuration values
-### == Parameters
+#
+# === Parameters:
+#
 # [*fsid*] The cluster's fsid.
 #   Mandatory. Get one with `uuidgen -r`.
 #
@@ -31,13 +35,16 @@
 # [*keyring*] The location of the keyring retrieved by default
 #   Optional. Defaults to /etc/ceph/keyring.
 #
+# [*osd_journal_size*] The size of the journal file/device.
+#   Optional. Integer. Default provided by Ceph.
+#
 # [*osd_pool_default_pg_num*] The default number of PGs per pool.
 #   Optional. Integer. Default provided by Ceph.
 #
 # [*osd_pool_default_pgp_num*] The default flags for new pools.
 #   Optional. Integer. Default provided by Ceph.
 #
-# [*$osd_pool_size*] Number of replicas for objects in the pool
+# [*osd_pool_default_size*] Number of replicas for objects in the pool
 #   Optional. Integer. Default provided by Ceph.
 #
 # [*osd_pool_default_min_size*] The default minimum num of replicas.
@@ -90,6 +97,7 @@ class ceph (
   $ensure                     = present,
   $authentication_type        = 'cephx',
   $keyring                    = undef,
+  $osd_journal_size           = undef,
   $osd_pool_default_pg_num    = undef,
   $osd_pool_default_pgp_num   = undef,
   $osd_pool_default_size      = undef,
@@ -106,7 +114,7 @@ class ceph (
   $cluster_network            = undef,
   $public_network             = undef,
 ) {
-  include ceph::params
+  include ::ceph::params
 
   package { $::ceph::params::packages :
     ensure => $ensure,
@@ -135,6 +143,7 @@ class ceph (
       'global/sign_messages':               value => $sign_messages;
       'global/cluster_network':             value => $cluster_network;
       'global/public_network':              value => $public_network;
+      'osd/osd_journal_size':               value => $osd_journal_size;
     }
 
     if $authentication_type == 'cephx' {

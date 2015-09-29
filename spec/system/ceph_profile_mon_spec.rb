@@ -14,12 +14,13 @@
 #   limitations under the License.
 #
 #  Author: David Gurtner <aldavud@crimson.ch>
+#  Author: David Moreau Simard <dmsimard@iweb.com>
 #
 require 'spec_helper_system'
 
 describe 'ceph::profile::mon' do
 
-  releases = ENV['RELEASES'] ? ENV['RELEASES'].split : [ 'dumpling', 'emperor', 'firefly' ]
+  releases = ENV['RELEASES'] ? ENV['RELEASES'].split : [ 'firefly', 'hammer' ]
   machines = ENV['MACHINES'] ? ENV['MACHINES'].split : [ 'first', 'second' ]
   # passing it directly as unqoted array is not supported everywhere
   packages = "[ 'python-ceph', 'ceph-common', 'librados2', 'librbd1', 'libcephfs1' ]"
@@ -47,7 +48,7 @@ ceph::profile::params::fsid: '#{fsid}'
 
         machines.each do |vm|
           puppet_apply(:node => vm, :code => pp) do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
         end
       end
@@ -75,15 +76,15 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
            EOS
 
            puppet_apply(pp) do |r|
-             r.exit_code.should_not == 1
+             expect(r.exit_code).not_to eq(1)
              r.refresh
-             r.exit_code.should_not == 1
+             expect(r.exit_code).not_to eq(1)
            end
 
            shell 'ceph -s' do |r|
-             r.stdout.should =~ /1 mons .* quorum 0 first/
-             r.stderr.should be_empty
-             r.exit_code.should be_zero
+             expect(r.stdout).to match(/1 mons .* quorum 0 first/)
+             expect(r.stderr).to be_empty
+             expect(r.exit_code).to be_zero
            end
         end
 
@@ -95,7 +96,7 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
          EOS
 
          puppet_apply(pp) do |r|
-           r.exit_code.should_not == 1
+           expect(r.exit_code).not_to eq(1)
          end
 
           osfamily = facter.facts['osfamily']
@@ -103,16 +104,16 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
 
           if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
             shell 'status ceph-mon id=first' do |r|
-              r.stdout.should be_empty
-              r.stderr.should =~ /Unknown instance: ceph.first/
-              r.exit_code.should_not be_zero
+              expect(r.stdout).to be_empty
+              expect(r.stderr).to match(/Unknown instance: ceph.first/)
+              expect(r.exit_code).not_to be_zero
             end
           end
           if osfamily == 'RedHat'
             shell 'service ceph status mon.first' do |r|
-              r.stdout.should =~ /mon.first not found/
-              r.stderr.should be_empty
-              r.exit_code.should_not be_zero
+              expect(r.stdout).to match(/mon.first not found/)
+              expect(r.stderr).to be_empty
+              expect(r.exit_code).not_to be_zero
             end
           end
         end
@@ -123,10 +124,16 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
           hiera = <<-EOS
 ceph::profile::params::release: '#{release}'
 ceph::profile::params::authentication_type: 'cephx'
-ceph::profile::params::admin_key: '#{admin_key}'
 ceph::profile::params::mon_key: '#{mon_key}'
 ceph::profile::params::mon_initial_members: 'first'
 ceph::profile::params::mon_host: '10.11.12.2:6789'
+ceph::profile::params::client_keys:
+  'client.admin':
+    secret: #{admin_key}
+    mode: '0600'
+    cap_mon: 'allow *'
+    cap_osd: 'allow *'
+    cap_mds: 'allow *'
           EOS
 
           file = Tempfile.new('hieradata')
@@ -143,20 +150,20 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
           EOS
 
           puppet_apply(pp) do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
             r.refresh
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
 
           shell 'ceph -s' do |r|
-            r.stdout.should =~ /1 mons .* quorum 0 first/
-            r.stderr.should be_empty
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/1 mons .* quorum 0 first/)
+            expect(r.stderr).to be_empty
+            expect(r.exit_code).to be_zero
           end
 
           shell 'ceph auth list' do |r|
-            r.stdout.should =~ /#{admin_key}/
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/#{admin_key}/)
+            expect(r.exit_code).to be_zero
           end
         end
 
@@ -168,7 +175,7 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
           EOS
 
           puppet_apply(pp) do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
 
           osfamily = facter.facts['osfamily']
@@ -176,16 +183,16 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
 
           if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
             shell 'status ceph-mon id=first' do |r|
-              r.stdout.should be_empty
-              r.stderr.should =~ /Unknown instance: ceph.first/
-              r.exit_code.should_not be_zero
+              expect(r.stdout).to be_empty
+              expect(r.stderr).to match(/Unknown instance: ceph.first/)
+              expect(r.exit_code).not_to be_zero
             end
           end
           if osfamily == 'RedHat'
             shell 'service ceph status mon.first' do |r|
-              r.stdout.should =~ /mon.first not found/
-              r.stderr.should be_empty
-              r.exit_code.should_not be_zero
+              expect(r.stdout).to match(/mon.first not found/)
+              expect(r.stderr).to be_empty
+              expect(r.exit_code).not_to be_zero
             end
           end
         end
@@ -199,10 +206,16 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
           hiera = <<-EOS
 ceph::profile::params::release: '#{release}'
 ceph::profile::params::authentication_type: 'cephx'
-ceph::profile::params::admin_key: '#{admin_key}'
 ceph::profile::params::mon_keyring: '#{keyring_path}'
 ceph::profile::params::mon_initial_members: 'first'
 ceph::profile::params::mon_host: '10.11.12.2:6789'
+ceph::profile::params::client_keys:
+  'client.admin':
+    secret: #{admin_key}
+    mode: '0600'
+    cap_mon: 'allow *'
+    cap_osd: 'allow *'
+    cap_mds: 'allow *'
           EOS
 
           file = Tempfile.new('hieradata')
@@ -219,20 +232,20 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
           EOS
 
           puppet_apply(pp) do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
             r.refresh
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
           shell 'ceph -s' do |r|
-            r.stdout.should =~ /1 mons .* quorum 0 first/
+            expect(r.stdout).to match(/1 mons .* quorum 0 first/)
 
-            r.stderr.should be_empty
-            r.exit_code.should be_zero
+            expect(r.stderr).to be_empty
+            expect(r.exit_code).to be_zero
           end
 
           shell 'ceph auth list' do |r|
-            r.stdout.should =~ /#{admin_key}/
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/#{admin_key}/)
+            expect(r.exit_code).to be_zero
           end
         end
 
@@ -244,7 +257,7 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
           EOS
 
           puppet_apply(pp) do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
 
           osfamily = facter.facts['osfamily']
@@ -252,16 +265,16 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
 
           if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
             shell 'status ceph-mon id=first' do |r|
-              r.stdout.should be_empty
-              r.stderr.should =~ /Unknown instance: ceph.first/
-              r.exit_code.should_not be_zero
+              expect(r.stdout).to be_empty
+              expect(r.stderr).to match(/Unknown instance: ceph.first/)
+              expect(r.exit_code).not_to be_zero
             end
           end
           if osfamily == 'RedHat'
             shell 'service ceph status mon.first' do |r|
-              r.stdout.should =~ /mon.first not found/
-              r.stderr.should be_empty
-              r.exit_code.should_not be_zero
+              expect(r.stdout).to match(/mon.first not found/)
+              expect(r.stderr).to be_empty
+              expect(r.exit_code).not_to be_zero
             end
           end
         end
@@ -269,7 +282,7 @@ ceph::profile::params::mon_host: '10.11.12.2:6789'
 
       describe 'on two hosts' do
         it 'should be two hosts' do
-          machines.size.should == 2
+          expect(machines.size).to eq(2)
         end
 
         it 'should install two monitors' do
@@ -296,16 +309,16 @@ ceph::profile::params::mon_host: '10.11.12.2,10.11.12.3'
             EOS
 
             puppet_apply(:node => mon, :code => pp) do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
               r.refresh
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
           end
 
           shell 'ceph -s' do |r|
-            r.stdout.should =~ /2 mons .* quorum 0,1 first,second/
-            r.stderr.should be_empty
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/2 mons .* quorum 0,1 first,second/)
+            expect(r.stderr).to be_empty
+            expect(r.exit_code).to be_zero
           end
         end
 
@@ -318,7 +331,7 @@ ceph::profile::params::mon_host: '10.11.12.2,10.11.12.3'
             EOS
 
             puppet_apply(:node => mon, :code => pp) do |r|
-              r.exit_code.should_not == 1
+              expect(r.exit_code).not_to eq(1)
             end
 
             osfamily = facter.facts['osfamily']
@@ -326,16 +339,16 @@ ceph::profile::params::mon_host: '10.11.12.2,10.11.12.3'
 
             if osfamily == 'Debian' && operatingsystem == 'Ubuntu'
               shell "status ceph-mon id=#{mon}" do |r|
-                r.stdout.should be_empty
-                r.stderr.should =~ /Unknown instance: ceph.#{mon}/
-                r.exit_code.should_not be_zero
+                expect(r.stdout).to be_empty
+                expect(r.stderr).to match(/Unknown instance: ceph.#{mon}/)
+                expect(r.exit_code).not_to be_zero
               end
             end
             if osfamily == 'RedHat'
               shell "service ceph status mon.#{mon}" do |r|
-                r.stdout.should =~ /mon.#{mon} not found/
-                r.stderr.should be_empty
-                r.exit_code.should_not be_zero
+                expect(r.stdout).to match(/mon.#{mon} not found/)
+                expect(r.stderr).to be_empty
+                expect(r.exit_code).not_to be_zero
               end
             end
           end
@@ -347,15 +360,15 @@ end
 # Local Variables:
 # compile-command: "cd ../..
 #   (
-#     cd .rspec_system/vagrant_projects/two-ubuntu-server-12042-x64
+#     cd .rspec_system/vagrant_projects/two-ubuntu-server-1204-x64
 #     vagrant destroy --force
 #   )
 #   cp -a Gemfile-rspec-system Gemfile
 #   BUNDLE_PATH=/tmp/vendor bundle install --no-deployment
 #   MACHINES='first second' \
-#   RELEASES=dumpling \
+#   RELEASES=hammer \
 #   RS_DESTROY=no \
-#   RS_SET=two-ubuntu-server-12042-x64 \
+#   RS_SET=two-ubuntu-server-1204-x64 \
 #   BUNDLE_PATH=/tmp/vendor \
 #   bundle exec rake spec:system \
 #          SPEC=spec/system/ceph_profile_mon_spec.rb \

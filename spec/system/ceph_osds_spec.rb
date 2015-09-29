@@ -19,7 +19,7 @@ require 'spec_helper_system'
 
 describe 'ceph::osds' do
 
-  releases = ENV['RELEASES'] ? ENV['RELEASES'].split : [ 'dumpling', 'emperor', 'firefly' ]
+  releases = ENV['RELEASES'] ? ENV['RELEASES'].split : [ 'firefly', 'hammer' ]
   machines = ENV['MACHINES'] ? ENV['MACHINES'].split : [ 'first', 'second' ]
   # passing it directly as unqoted array is not supported everywhere
   fsid = 'a4807c9a-e76f-4666-a297-6d6cbc922e3a'
@@ -51,8 +51,8 @@ describe 'ceph::osds' do
     EOS
 
     machines.each do |vm|
-      puppet_apply(pp) do |r|
-        r.exit_code.should_not == 1
+      puppet_apply(:node => vm, :code => pp) do |r|
+        expect(r.exit_code).not_to eq(1)
       end
 
       rcp(:sp => data, :dp => data_path, :d => node(:name => vm))
@@ -83,21 +83,7 @@ second: osd
   end
 
   after(:all) do
-    pp = <<-EOS
-      ini_setting { 'puppetmastermodulepath':
-        ensure  => absent,
-        path    => '/etc/puppet/puppet.conf',
-        section => 'main',
-        setting => 'node_terminus',
-        value   => 'scenario',
-      }
-    EOS
-
     machines.each do |vm|
-      puppet_apply(pp) do |r|
-        r.exit_code.should_not == 1
-      end
-
       file = Tempfile.new('hieraconfig')
       begin
         file.write(minimal_hiera_config)
@@ -107,6 +93,7 @@ second: osd
         file.unlink
       end
 
+      shell(:node => vm, :command => "sed -i '/^\\s*node_terminus\\s*=\\s*scenario\\s*$/d' /etc/puppet/puppet.conf")
       shell(:node => vm, :command => 'rm -rf /etc/puppet/data')
     end
   end
@@ -127,7 +114,7 @@ ensure: purged
 
         machines.each do |vm|
           puppet_apply('') do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
 
           shell(:node => vm, :command => 'test -b /dev/sdb && sgdisk --zap-all --clear --mbrtogpt -- /dev/sdb')
@@ -161,15 +148,15 @@ ensure: present
           end
 
           puppet_apply('') do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
             r.refresh
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
 
           shell 'ceph osd tree' do |r|
-            r.stdout.should =~ /osd.0/
-            r.stderr.should be_empty
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/osd.0/)
+            expect(r.stderr).to be_empty
+            expect(r.exit_code).to be_zero
           end
         end
       end
@@ -212,15 +199,15 @@ ensure: present
           end
 
           puppet_apply('') do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
             r.refresh
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
 
           shell 'ceph osd tree' do |r|
-            r.stdout.should =~ /osd.0/
-            r.stderr.should be_empty
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/osd.0/)
+            expect(r.stderr).to be_empty
+            expect(r.exit_code).to be_zero
           end
         end
       end
@@ -230,15 +217,15 @@ end
 # Local Variables:
 # compile-command: "cd ../..
 #   (
-#     cd .rspec_system/vagrant_projects/one-ubuntu-server-12042-x64
+#     cd .rspec_system/vagrant_projects/ubuntu-server-1204-x64
 #     vagrant destroy --force
 #   )
 #   cp -a Gemfile-rspec-system Gemfile
 #   BUNDLE_PATH=/tmp/vendor bundle install --no-deployment
-#   RELEASES=dumpling \
+#   RELEASES=hammer \
 #   MACHINES=first \
 #   RS_DESTROY=no \
-#   RS_SET=one-ubuntu-server-12042-x64 \
+#   RS_SET=ubuntu-server-1204-x64 \
 #   BUNDLE_PATH=/tmp/vendor \
 #   bundle exec rake spec:system \
 #         SPEC=spec/system/ceph_osds_spec.rb \

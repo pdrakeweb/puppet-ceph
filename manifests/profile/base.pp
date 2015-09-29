@@ -15,18 +15,25 @@
 #
 # Author: David Gurtner <aldavud@crimson.ch>
 #
+# == Class: ceph::profile::base
+#
 # Base profile to install ceph and configure /etc/ceph/ceph.conf
 #
 class ceph::profile::base {
-  class { 'ceph::profile::params': } ->
+  include ::ceph::profile::params
 
-  class { 'ceph::repo':
-    release => $ceph::profile::params::release,
-  } ->
+  if ( $ceph::profile::params::manage_repo ) {
+    Class['ceph::repo'] -> Class['ceph']
 
-  class { 'ceph':
+    class { '::ceph::repo':
+      release => $ceph::profile::params::release,
+    }
+  }
+
+  class { '::ceph':
     fsid                      => $ceph::profile::params::fsid,
     authentication_type       => $ceph::profile::params::authentication_type,
+    osd_journal_size          => $ceph::profile::params::osd_journal_size,
     osd_pool_default_pg_num   => $ceph::profile::params::osd_pool_default_pg_num,
     osd_pool_default_pgp_num  => $ceph::profile::params::osd_pool_default_pgp_num,
     osd_pool_default_size     => $ceph::profile::params::osd_pool_default_size,

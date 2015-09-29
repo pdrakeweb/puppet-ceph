@@ -20,15 +20,14 @@ require 'spec_helper_system'
 describe 'ceph::profile::base' do
 
   release2version = {
-    'dumpling' => '0.67',
-    'emperor' => '0.72',
     'firefly' => '0.80',
+    'hammer' => '0.94',
   }
 
   releases = ENV['RELEASES'] ? ENV['RELEASES'].split : release2version.keys
   machines = ENV['MACHINES'] ? ENV['MACHINES'].split : [ 'first', 'second' ]
   # passing it directly as unqoted array is not supported everywhere
-  packages = "[ 'python-ceph', 'ceph-common', 'curl', 'librados2', 'librbd1', 'libcephfs1' ]"
+  packages = "[ 'python-ceph', 'ceph-common', 'librados2', 'librbd1', 'libcephfs1' ]"
   fsid = 'a4807c9a-e76f-4666-a297-6d6cbc922e3a'
   hieradata_common = '/var/lib/hiera/common.yaml'
   hiera_shared = <<-EOS
@@ -54,7 +53,7 @@ ceph::profile::params::fsid: '#{fsid}'
 
         machines.each do |vm|
           puppet_apply(:node => vm, :code => pp) do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
         end
       end
@@ -93,21 +92,21 @@ ceph::profile::params::release: '#{release}'
           EOS
 
           puppet_apply(pp) do |r|
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
             r.refresh
-            r.exit_code.should_not == 1
+            expect(r.exit_code).not_to eq(1)
           end
 
           shell 'cat /etc/ceph/ceph.conf' do |r|
-            r.stdout.should =~ /#{fsid}/
-            r.stderr.should be_empty
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/#{fsid}/)
+            expect(r.stderr).to be_empty
+            expect(r.exit_code).to be_zero
           end
 
           shell querycommand do |r|
-            r.stdout.should =~ /#{queryresult}/
-            r.stderr.should be_empty
-            r.exit_code.should be_zero
+            expect(r.stdout).to match(/#{queryresult}/)
+            expect(r.stderr).to be_empty
+            expect(r.exit_code).to be_zero
           end
         end
       end
@@ -117,15 +116,15 @@ end
 # Local Variables:
 # compile-command: "cd ../..
 #   (
-#     cd .rspec_system/vagrant_projects/one-ubuntu-server-12042-x64
+#     cd .rspec_system/vagrant_projects/ubuntu-server-1204-x64
 #     vagrant destroy --force
 #   )
 #   cp -a Gemfile-rspec-system Gemfile
 #   BUNDLE_PATH=/tmp/vendor bundle install --no-deployment
 #   MACHINES=first \
-#   RELEASES=dumpling \
+#   RELEASES=hammer \
 #   RS_DESTROY=no \
-#   RS_SET=one-ubuntu-server-12042-x64 \
+#   RS_SET=ubuntu-server-1204-x64 \
 #   BUNDLE_PATH=/tmp/vendor \
 #   bundle exec rake spec:system SPEC=spec/system/ceph_profile_base_spec.rb &&
 #   git checkout Gemfile

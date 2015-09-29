@@ -20,11 +20,11 @@
 # Manages operations on the pools in the cluster, such as creating or deleting
 # pools, setting PG/PGP numbers, number of replicas, ...
 #
-### == Name
+# == Define: ceph::pool
 #
 # The name of the pool.
 #
-### == Parameters
+# === Parameters:
 #
 # [*ensure*] Creates ( present ) or removes ( absent ) a pool.
 #   Optional. Defaults to present.
@@ -93,7 +93,7 @@ set -ex
 ceph osd pool set ${name} size ${size}",
         unless  => "/bin/true # comment to satisfy puppet syntax requirements
 set -ex
-test $(ceph osd pool get ${name} size` | sed 's/.*:\s*//g') == ${size}",
+test $(ceph osd pool get ${name} size | sed 's/.*:\s*//g') -eq ${size}",
         require => Exec["create-${name}"],
       }
     }
